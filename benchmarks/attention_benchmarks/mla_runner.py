@@ -180,13 +180,27 @@ def create_minimal_vllm_config(
 
     if prefill_backend is not None:
         prefill_cfg = get_prefill_backend_config(prefill_backend)
-        vllm_config.attention_config.mla_prefill_backend = prefill_cfg[
-            "mla_prefill_backend"
-        ]
-        if prefill_cfg["flash_attn_version"] is not None:
-            vllm_config.attention_config.flash_attn_version = prefill_cfg[
-                "flash_attn_version"
+        if prefill_cfg.get("mla_prefill_backend_enum") is not None:
+            # Registry-based backends bypass the deprecated boolean flags.
+            from vllm.v1.attention.backends.mla.prefill import MLAPrefillBackendEnum
+
+            vllm_config.attention_config.mla_prefill_backend = MLAPrefillBackendEnum[
+                prefill_cfg["mla_prefill_backend_enum"]
             ]
+        else:
+            if prefill_cfg["flash_attn_version"] is not None:
+                vllm_config.attention_config.flash_attn_version = prefill_cfg[
+                    "flash_attn_version"
+                ]
+            vllm_config.attention_config.disable_flashinfer_prefill = prefill_cfg[
+                "disable_flashinfer_prefill"
+            ]
+            vllm_config.attention_config.use_cudnn_prefill = prefill_cfg[
+                "use_cudnn_prefill"
+            ]
+            vllm_config.attention_config.use_trtllm_ragged_deepseek_prefill = (
+                prefill_cfg["use_trtllm_ragged_deepseek_prefill"]
+            )
 
     return vllm_config
 
@@ -212,16 +226,17 @@ _PREFILL_BACKEND_CONFIG: dict[str, dict] = {
         "mla_prefill_backend": MLAPrefillBackendEnum.FLASH_ATTN,
     },
     "flashinfer": {
-        "flash_attn_version": None,
-        "mla_prefill_backend": MLAPrefillBackendEnum.FLASHINFER,
+        "mla_prefill_backend_enum": "FLASHINFER",
+    },
+    "cudnn": {
+        # cuDNN prefill backend was removed; AttentionConfig raises on use.
+        "mla_prefill_backend_enum": "FLASHINFER",
     },
     "trtllm": {
-        "flash_attn_version": None,
-        "mla_prefill_backend": MLAPrefillBackendEnum.TRTLLM_RAGGED,
+        "mla_prefill_backend_enum": "TRTLLM_RAGGED",
     },
     "tokenspeed": {
-        "flash_attn_version": None,
-        "mla_prefill_backend": MLAPrefillBackendEnum.TOKENSPEED_MLA,
+        "mla_prefill_backend_enum": "TOKENSPEED_MLA",
     },
 }
 
